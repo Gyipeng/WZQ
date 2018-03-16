@@ -1,0 +1,911 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta charset="utf-8" />
+<style type="text/css">
+body {
+font-size: 70%;
+font-family: verdana, helvetica, arial, sans-serif;
+}
+#consolebutton button {
+min-width: 69.33px;
+}
+#save_game_list {
+width: 174px;
+height: 280px;
+overflow: auto;
+}
+#save_game_list label {
+display: block;
+}
+table {
+margin: 0 auto;
+}
+</style>
+</head>
+<body>
+<table id="maintable" border="1">
+<tr>
+<td>
+<div id="container">
+<canvas id="coordiv"></canvas>
+<br />
+<!-- <div id="xycoordinates"></div> -->
+</div>
+</td>
+<td valign="top">
+<div id="consolebutton">
+<table>
+<tr>
+<td><button onclick="start_single_game()">单人游戏</button></td>
+<td><button onclick="start_double_game()">双人游戏</button></td>
+</tr>
+<tr>
+<td><button onclick="revoked()">悔棋</button></td>
+<td><button onclick="give_up()">认输</button></td>
+</tr>
+<tr>
+<td><button onclick="init_game()">清空棋盘</button></td>
+<td><button onclick="save_chessboard_button()">保存棋局</button></td>
+</tr>
+<tr>
+<td><button onclick="delete_chessboard_button()">删除棋局</button></td>
+<td><button onclick="load_chessboard_button()">载入棋局</button></td>
+</tr>
+</table>
+</div>
+<h3 style="text-align: center;">已保存的棋局列表</h3>
+<div id="save_game_list">
+<label><input type="radio" name="save_game_name" value="2018-11-11 23:46:437">2018-11-11 23:46:43</label>
+<label><input type="radio" name="save_game_name" value="2018-11-11 23:46:437">2018-11-11 23:46:43</label>
+<label><input type="radio" name="save_game_name" value="2018-11-11 23:46:437">2018-11-11 23:46:43</label>
+<label><input type="radio" name="save_game_name" value="2018-11-11 23:46:437">2018-11-11 23:46:43</label>
+<label><input type="radio" name="save_game_name" value="2018-11-11 23:46:437">2018-11-11 23:46:43</label>
+<label><input type="radio" name="save_game_name" value="2018-11-11 23:46:437">2018-11-11 23:46:43</label>
+</div>
+</td>
+</tr>
+</table>
+<script>
+var cc = document.getElementById("container");
+var c = document.getElementById("coordiv"); // 获取canvas的节点
+var cxt = c.getContext("2d"); // 创建 context 对象
+var piecessize = 10; // 一个棋子的半径
+var piecesinterval = piecessize / 3; // 棋子之间的间隔
+var fistpoint = piecessize + piecesinterval * 2; // 棋盘起始位置
+var boxsize = piecessize * 2 + piecesinterval * 2; // 一格的大小
+var boxnumber = 14; // 棋盘的大小
+var cwidth = boxsize * boxnumber + fistpoint * 2 + 4 + piecessize * 2; // canvas的大小
+cc.setAttribute("width", cwidth);
+cc.style.width = cwidth + "px";
+c.setAttribute("width", cwidth); // 设置canvas的宽度
+c.setAttribute("height", cwidth); // 设置canvas的高度
+window.onload = function() {
+draw_background();
+show_save_game_list();
+}
+// 游戏数据
+var game_data = {
+boxnumber: boxnumber, // 棋盘的大小
+game_mode: 0, // 表示游戏，0表示未选择，1表示单人游戏，2表示双人游戏
+game_status: 0, // 表示游戏状态，0表示未开始，1表示轮到黑色，2表示轮到白色
+// 表示玩家状态，0表示该玩家未参与游戏，1表示轮到该玩家，2表示未轮到该玩家
+player1: 0, // 玩家1
+player2: 0, // 玩家2
+npc: 0, // 电脑
+game_history: [], // 表示游戏历史[[x,y,c],[x,y,c],...] x,y代表坐标 c代表颜色 1代表黑色 2代表白色 0代表玩家pass
+game_role: {
+black: null,
+white: null
+}
+};
+// 绘制棋盘
+function draw_background() {
+// 绘制背景
+cxt.fillStyle = "#2c9a2c";
+cxt.beginPath();
+cxt.fillRect(0, 0, cwidth, cwidth);
+cxt.closePath();
+cxt.fill();
+// 绘制棋盘基本格子
+for (var i = 0; i < boxnumber; i++) {
+for (var j = 0; j < boxnumber; j++) {
+cxt.strokeRect(fistpoint + j * boxsize, fistpoint + i * boxsize, boxsize, boxsize);
+}
+}
+// 绘制棋盘边框
+cxt.lineWidth = piecessize / 3; // 边框宽度
+cxt.strokeRect(fistpoint, fistpoint, boxnumber * boxsize, boxnumber * boxsize);
+cxt.lineWidth = 1;
+// 绘制棋盘的黑点
+cxt.fillStyle = "#000000"; // 设置圆点的颜色
+boxarc = piecessize / 3; // 设置圆点的直径
+cxt.beginPath();
+// 左上角
+cxt.arc(fistpoint + boxsize * 3, fistpoint + boxsize * 3, boxarc, 0, Math.PI * 2, true);
+cxt.closePath();
+cxt.fill();
+// 右上角
+cxt.beginPath();
+cxt.arc(fistpoint + boxsize * (boxnumber - 3), fistpoint + boxsize * 3, boxarc, 0, Math.PI * 2, true);
+cxt.closePath();
+cxt.fill();
+// 左下角
+cxt.beginPath();
+cxt.arc(fistpoint + boxsize * 3, fistpoint + boxsize * (boxnumber - 3), boxarc, 0, Math.PI * 2, true);
+cxt.closePath();
+cxt.fill();
+// 右上角
+cxt.beginPath();
+cxt.arc(fistpoint + boxsize * (boxnumber - 3), fistpoint + boxsize * (boxnumber - 3), boxarc, 0, Math.PI * 2, true);
+cxt.closePath();
+cxt.fill();
+// 中点
+cxt.beginPath();
+cxt.arc(fistpoint + boxsize * (boxnumber / 2), fistpoint + boxsize * (boxnumber / 2), boxarc, 0, Math.PI * 2, true);
+cxt.closePath();
+cxt.fill();
+// 绘制行号
+var colstr = "ABCDEHGHIJKLNMOPQRSTUVWSYZ";
+cxt.font = (piecessize * 2) + "px serif";
+// 列
+for (var i = 0; i < boxnumber + 1; i++) {
+cxt.fillText(colstr[i], fistpoint + (boxsize - 1) * i, boxsize * boxnumber + boxsize + piecessize * 2);
+}
+// 行
+var rowstr = [];
+for (var i = 0; i < boxnumber + 1; i++) {
+rowstr[i] = i + 1;
+}
+for (var i = 0, j = 0; i < 15; i++, j++) {
+cxt.fillText(rowstr[j], boxsize * boxnumber + boxsize + piecessize - 9, fistpoint * 1.5 + (boxsize) * i);
+}
+}
+// 显示鼠标在canvas上的坐标
+// c.onmousemove = function(e) {
+// // 获取鼠标在canvas上的坐标
+// let x = e.offsetX; // 获取鼠标在canvas上x轴的坐标
+// let y = e.offsetY; // 获取鼠标在canvas上y轴的坐标
+// let pieces_location = compute_pieces_location(x, y);
+// document.getElementById("xycoordinates").innerHTML = "Coordinates: (" + x + "," + y + ") (" + (pieces_location[0] + 1) + "," + (pieces_location[1] + 1) + ") ";
+// }
+// 初始化游戏
+function init_game() {
+// 判断是否还有棋局进行中
+if (is_game_start()) {
+if (!confirm("是否结束当前对局")) return;
+}
+// 初始化游戏数据
+init_game_data();
+}
+// 单人游戏
+function start_single_game() {
+// 初始化游戏
+init_game();
+alert("单人游戏");
+let r = confirm("是否执黑");
+let player_color;
+if (r == true) { // 玩家选择了黑棋
+// alert("玩家选择了黑棋");
+player_color = 1;
+game_data.game_role.black = "player1";
+game_data.game_role.white = "npc";
+} else { // 玩家选择了白棋
+// alert("玩家选择了白棋");
+player_color = 0;
+game_data.game_role.black = "npc";
+game_data.game_role.white = "player1";
+}
+// 表示游戏，0表示未选择，1表示单人游戏，2表示双人游戏
+game_data.game_mode = 1;
+// 表示游戏状态，0表示未开始，1表示轮到黑色，2表示轮到白色
+game_data.game_status = 1;
+// 表示玩家状态，0表示该玩家未参与游戏，1表示轮到该玩家，2表示未轮到该玩家
+game_data.player1 = (player_color == 1) ? 1 : 2 // 玩家1
+game_data.player2 = 0; // 玩家2
+game_data.npc = (player_color == 0) ? 1 : 2; // 电脑
+// console.log("单人游戏");
+if (game_data.npc == 1) {
+npc_move(); // 电脑下棋
+}
+}
+// 双人游戏
+function start_double_game() {
+// 初始化游戏
+init_game();
+alert("双人游戏");
+// 表示游戏，0表示未选择，1表示单人游戏，2表示双人游戏
+game_data.game_mode = 2;
+// 表示游戏状态，0表示未开始，1表示轮到黑色，2表示轮到白色
+game_data.game_status = 1;
+// 表示玩家状态，0表示该玩家未参与游戏，1表示轮到该玩家，2表示未轮到该玩家
+game_data.player1 = 1; // 玩家1
+game_data.player2 = 2; // 玩家2
+game_data.npc = 0; // 电脑
+game_data.game_role.black = "player1";
+game_data.game_role.white = "player2";
+// console.log("双人游戏");
+}
+// 响应鼠标在canvas上的点击
+c.onclick = function(e) {
+let pieces_location; // 棋子在棋盘上的坐标
+// 获取鼠标在canvas上的坐标
+x = e.offsetX; // 获取鼠标在canvas上x轴的坐标
+y = e.offsetY; // 获取鼠标在canvas上y轴的坐标
+// 设置有效响应位置
+if (x > (fistpoint - piecessize) &&
+x < (boxnumber * boxsize + fistpoint + piecessize) &&
+y > (fistpoint - piecessize) &&
+y < (boxnumber * boxsize + fistpoint + piecessize)) {
+// console.log("有效响应位置 " + x + " " + y);
+pieces_location = compute_pieces_location(x, y); // 获取鼠标点击的位置在棋盘上对应的坐标
+// 判断当前鼠标点击的位置是否已经有棋子
+if (0 == is_there_pieces(pieces_location)) { // 这个位置没有棋子
+if (game_data.game_mode == 2) { // 双人游戏
+chess_move(pieces_location); // 下棋
+return;
+}
+if (game_data.game_mode == 1) { // 单人游戏
+if (game_data.player1 == 1) { // 判断是否轮到玩家
+chess_move(pieces_location); // 下棋
+if (game_data.game_mode != 0) { // 如果玩家没有赢，则轮到电脑下棋
+npc_move(); // 电脑下棋
+}
+}
+return;
+}
+} else { // 这个位置已有棋子
+}
+} else {
+console.log("无效响应位置 " + x + " " + y);
+}
+}
+// 绘制棋子到棋盘上
+function draw_pieces(piecesx, piecesy, piecescolor) {
+if (piecescolor == 1) { // 如果piecescolor为1则为黑棋，否则为白棋
+cxt.fillStyle = "#000000"; // 设置圆点的颜色为黑色
+} else if (piecescolor == 2) {
+cxt.fillStyle = "#FFFFFF"; // 设置圆点的颜色为白色
+} else {
+return;
+}
+cxt.beginPath();
+cxt.arc(fistpoint + piecesx * boxsize, fistpoint + piecesy * boxsize, piecessize, 0, Math.PI * 2, true);
+cxt.closePath();
+cxt.fill();
+}
+// 计算棋子在棋盘上的坐标
+function compute_pieces_location(x, y) {
+let piecesx = Math.round((x - fistpoint) / (boxsize));
+let piecesy = Math.round((y - fistpoint) / (boxsize));
+return [piecesx, piecesy];
+}
+// 初始化代表棋盘的数组
+function init_chessboard_arr(chessboard) {
+let chessboard_arr = [game_data.boxnumber + 1];
+for (let i = 0; i < game_data.boxnumber + 1; i++) {
+chessboard_arr[i] = [];
+for (let j = 0; j < game_data.boxnumber + 1; j++) {
+chessboard_arr[i][j] = 0;
+}
+}
+for (let i = 0; i < chessboard.length; i++) { // 把游戏的历史记录更新到数组里
+chessboard_arr[chessboard[i][0]][chessboard[i][1]] = chessboard[i][2];
+}
+return chessboard_arr;
+}
+// 判断是否赢了
+function is_win(chessboard, lastpieces) {
+let chessboard_arr = init_chessboard_arr(chessboard); // 初始化代表棋盘的数组
+let ret = 0; // 用来判断游戏是否已结束的标记
+// 通过最后一个落子的位置判断是否赢了
+// 横向
+if (is_win_row(chessboard_arr, lastpieces) == 1) ret = 1;
+// 纵向
+if (is_win_col(chessboard_arr, lastpieces) == 1) ret = 1;
+// 斜向1
+if (is_win_diagonal1(chessboard_arr, lastpieces) == 1) ret = 1;
+// 斜向2
+if (is_win_diagonal2(chessboard_arr, lastpieces) == 1) ret = 1;
+// 判断是否和棋
+if (is_drawn(chessboard, lastpieces) == 1) ret = 2;
+return ret;
+}
+// 判断是否赢了 横向
+function is_win_row(chessboard_arr, lastpieces) {
+let startx;
+let endx;
+if (lastpieces[0] <= 3) {
+startx = 0;
+endx = lastpieces[0] + 4;
+} else if (lastpieces[0] >= 11) {
+startx = lastpieces[0] - 4;
+endx = 14;
+} else {
+startx = lastpieces[0] - 4;
+endx = lastpieces[0] + 4;
+}
+for (let i = startx; i <= endx; i++) {
+if (i + 4 > endx) break;
+if (chessboard_arr[i][lastpieces[1]] == lastpieces[2] &&
+chessboard_arr[i + 1][lastpieces[1]] == lastpieces[2] &&
+chessboard_arr[i + 2][lastpieces[1]] == lastpieces[2] &&
+chessboard_arr[i + 3][lastpieces[1]] == lastpieces[2] &&
+chessboard_arr[i + 4][lastpieces[1]] == lastpieces[2]) {
+return 1;
+}
+}
+return 0;
+}
+// 判断是否赢了 纵向
+function is_win_col(chessboard_arr, lastpieces) {
+let starty;
+let endy;
+if (lastpieces[1] <= 3) {
+starty = 0;
+endy = lastpieces[1] + 4;
+} else if (lastpieces[1] >= 11) {
+starty = lastpieces[1] - 4;
+endy = 14;
+} else {
+starty = lastpieces[1] - 4;
+endy = lastpieces[1] + 4;
+}
+for (let i = starty; i <= endy; i++) {
+if (i + 4 > endy) break;
+if (chessboard_arr[lastpieces[0]][i] == lastpieces[2] &&
+chessboard_arr[lastpieces[0]][i + 1] == lastpieces[2] &&
+chessboard_arr[lastpieces[0]][i + 2] == lastpieces[2] &&
+chessboard_arr[lastpieces[0]][i + 3] == lastpieces[2] &&
+chessboard_arr[lastpieces[0]][i + 4] == lastpieces[2]) {
+return 1;
+}
+}
+return 0;
+}
+// 判断是否赢了 斜向1
+function is_win_diagonal1(chessboard_arr, lastpieces) {
+let startx;
+let endx;
+let starty;
+let endy;
+startx = lastpieces[0];
+starty = lastpieces[1];
+endx = lastpieces[0];
+endy = lastpieces[1];
+for (let i = 1; i <= 4; i++) {
+if (startx <= 0 || starty >= 14) break;
+startx = lastpieces[0] - i;
+starty = lastpieces[1] + i;
+}
+for (let i = 1; i <= 4; i++) {
+if (endx >= 14 || endy <= 0) break;
+endx = lastpieces[0] + i;
+endy = lastpieces[1] - i;
+}
+for (let i = startx, j = starty; i <= endx && j >= endy; i++, j--) {
+if (i + 4 > endx || j - 4 < endy) break;
+if (chessboard_arr[i][j] == lastpieces[2] &&
+chessboard_arr[i + 1][j - 1] == lastpieces[2] &&
+chessboard_arr[i + 2][j - 2] == lastpieces[2] &&
+chessboard_arr[i + 3][j - 3] == lastpieces[2] &&
+chessboard_arr[i + 4][j - 4] == lastpieces[2]) {
+return 1;
+}
+}
+return 0;
+}
+// 判断是否赢了 斜向2
+function is_win_diagonal2(chessboard_arr, lastpieces) {
+let startx;
+let endx;
+let starty;
+let endy;
+startx = lastpieces[0];
+starty = lastpieces[1];
+endx = lastpieces[0];
+endy = lastpieces[1];
+for (let i = 1; i <= 4; i++) {
+if (startx <= 0 || starty <= 0) break;
+startx = lastpieces[0] - i;
+starty = lastpieces[1] - i;
+}
+for (let i = 1; i <= 4; i++) {
+if (endx >= 14 || endy >= 14) break;
+endx = lastpieces[0] + i;
+endy = lastpieces[1] + i;
+}
+// draw_pieces(startx,starty,lastpieces[2]);
+// draw_pieces(endx,endy,lastpieces[2]);
+for (let i = startx, j = starty; i <= endx && j <= endy; i++, j++) {
+if (i + 4 > endx || j + 4 > endy) break;
+if (chessboard_arr[i][j] == lastpieces[2] &&
+chessboard_arr[i + 1][j + 1] == lastpieces[2] &&
+chessboard_arr[i + 2][j + 2] == lastpieces[2] &&
+chessboard_arr[i + 3][j + 3] == lastpieces[2] &&
+chessboard_arr[i + 4][j + 4] == lastpieces[2]) {
+return 1;
+}
+}
+return 0;
+}
+// 判断是否赢了 和棋
+function is_drawn(chessboard, lastpieces) {
+if (chessboard.length >= 225) return 1;
+return 0;
+}
+// 判断当前位置是否已经有棋子
+function is_there_pieces(pieces_location) {
+for (let i = 0; i < game_data.game_history.length; i++) {
+if (game_data.game_history[i][0] == pieces_location[0] &&
+game_data.game_history[i][1] == pieces_location[1]) {
+return 1;
+}
+}
+return 0;
+}
+// 初始化游戏数据
+function init_game_data() {
+game_data.game_mode = 0;
+game_data.game_status = 0;
+game_data.player1 = 0;
+game_data.player2 = 0;
+game_data.npc = 0;
+game_data.game_history = [];
+draw_background();
+}
+// 修改游戏状态
+function change_game_status() {
+if (game_data.game_status == 1) { // 修改游戏状态
+game_data.game_status = 2; // 把游戏状态修改为轮到白棋
+} else if (game_data.game_status == 2) {
+game_data.game_status = 1; // 把游戏状态修改为轮到黑棋
+}
+if (game_data.game_mode == 1) { // 单人模式下修改玩家状态
+if (game_data.player1 == 1) { // 轮到电脑
+game_data.player1 = 2;
+game_data.npc = 1;
+} else { // 轮到玩家
+game_data.player1 = 1;
+game_data.npc = 2;
+}
+} else if (game_data.game_mode == 1) { // 单人模式下修改玩家状态
+if (game_data.player1 == 1) {
+game_data.player1 = 2;
+game_data.player2 = 1;
+} else {
+game_data.player1 = 1;
+game_data.player2 = 2;
+}
+}
+}
+// 电脑下棋
+function npc_move() {
+let pieces_location = [];
+if (game_data.game_history.length > 0) {
+fiveChess = new FiveChess();
+AI = fiveChess.AI();
+pieces_location[0] = AI.x;
+pieces_location[1] = AI.y;
+// console.log(pieces_location);
+} else {
+pieces_location[0] = 7;
+pieces_location[1] = 7;
+}
+chess_move(pieces_location); // 下棋
+}
+// 下棋
+function chess_move(pieces_location) {
+draw_pieces(pieces_location[0], pieces_location[1], game_data.game_status); // 绘制棋子到棋盘上
+pieces_location.push(game_data.game_status); // 在代表棋子位置的数组里添加代表棋子颜色的值
+game_data.game_history.push(pieces_location); // 更新游戏历史
+let flg = is_win(game_data.game_history, pieces_location); // 判断是否赢了
+if (flg == 1) { // 赢了
+if (game_data.game_status == 1) {
+alert("黑棋胜");
+} else if (game_data.game_status == 2) {
+alert("白棋胜");
+}
+// init_game_data(); // 初始化游戏数据
+game_data.game_mode = 0;
+game_data.game_status = 0;
+} else if (flg == 2) { // 和棋
+alert("和棋");
+// init_game_data(); // 初始化游戏数据
+game_data.game_mode = 0;
+game_data.game_status = 0;
+} else { // 没有赢
+change_game_status(); // 修改游戏状态
+}
+}
+// pass
+// function pass() {
+// change_game_status(); // 修改游戏状态
+// }
+// 认输
+function give_up() {
+// 判断棋局是否已开始
+if (!is_game_start()) {
+return;
+}
+if (game_data.game_status == 1) {
+alert("黑棋认输");
+} else if (game_data.game_status == 2) {
+alert("白棋认输");
+}
+// init_game_data(); // 初始化游戏数据
+game_data.game_mode = 0;
+game_data.game_status = 0;
+}
+// 判断棋局是否已开始
+function is_game_start() {
+// 还没有开始游戏的情况
+if (game_data.game_status == 0) {
+return false;
+}
+// 已开始游戏但没有下棋的情况
+if (game_data.game_history.length == 0) {
+return false;
+}
+return true;
+}
+// 悔棋
+function revoked() {
+// 判断棋局是否已开始
+if (!is_game_start()) {
+return;
+}
+// 如果游戏模式是双人模式则询问是否允许悔棋
+if (game_data.game_mode == 2) {
+let r = confirm("是否允许悔棋");
+if (r == false) {
+return;
+}
+}
+// 第一步就需要悔棋的情况
+if (game_data.game_history.length == 1) {
+undo(); // 后退一步
+change_game_status(); // 修改游戏状态
+return;
+}
+if (game_data.npc == 2) {
+// 如果是单人游戏且是未轮到电脑的情况下则后退两步
+undo();
+undo();
+} else {
+// 后退一步
+undo();
+change_game_status(); // 修改游戏状态
+}
+}
+// 棋局返回到前一步的状态
+function undo() {
+// 删除最前一步
+game_data.game_history.pop();
+// 重新绘制棋盘
+re_draw_background();
+}
+// 重新绘制棋盘
+function re_draw_background() {
+draw_background();
+game_data.game_history.forEach(function(item) {
+draw_pieces(item[0], item[1], item[2]); // 绘制棋子到棋盘上
+})
+}
+// 保存棋局
+function save_chessboard() {
+// localStorage.game_data = JSON.stringify(game_data);
+// localStorage.setItem('game_data', JSON.stringify(game_data));
+// let save_game_name = prompt("请输入保存棋局的名称", "Bill Gates");
+// 判断棋局是否已开始
+if (!is_game_start()) {
+return false;
+}
+let now = new Date();
+let tiemstamp = Number(now); // 获取当前时间戳
+let fullyear = now.getFullYear();
+let month = now.getMonth() + 1;
+let date = now.getDate();
+let hour = now.getHours();
+let minute = now.getMinutes();
+let second = now.getSeconds();
+let default_name = fullyear + "-" + month + "-" + date + " " + hour + ":" + minute + ":" + second;
+let save_game_name = prompt("请输入保存棋局的名称", default_name);
+let save_game_arr = get_save_game_name();
+if (save_game_name == null && save_game_name == "") {
+alert("棋局名不能为空");
+return false;
+}
+if (save_game_name.length > 18) {
+alert("棋局名不能多于18个字符");
+return false;
+}
+for (let i = 0; i < save_game_arr.length; i++) {
+if (save_game_arr[i] == save_game_name) {
+if (confirm("棋局名称重复，是否覆盖已存在的棋局")) {
+// 删除保存的棋局
+delete_chessboard(save_game_name);
+break;
+} else {
+return false;
+}
+}
+}
+localStorage.setItem(save_game_name, JSON.stringify(game_data));
+return save_game_name;
+}
+// 载入保存的棋局
+function load_chessboard(save_game_name) {
+let game_data_str = localStorage.getItem(save_game_name);
+if (game_data_str == null || game_data_str == "") {
+alert("棋局载入失败，不存在的棋局名");
+return;
+}
+game_data = JSON.parse(game_data_str);
+// 重新绘制棋盘
+re_draw_background();
+}
+// 删除保存的棋局
+function delete_chessboard(save_game_name) {
+localStorage.removeItem(save_game_name);
+}
+// 获取已保存的棋局的名称
+function get_save_game_name() {
+let save_game_arr = [];
+// for (let index in localStorage) {
+// save_game_arr.push(index);
+// }
+for (let i = 0; i < localStorage.length; i++) {
+save_game_arr.push(localStorage.key(i));
+}
+return save_game_arr;
+}
+// 获取已保存棋局列表中被选中的项
+function get_save_game_list_checked() {
+let save_game_radio = document.getElementsByName("save_game_name");
+var save_game_radio_id = -1;
+save_game_radio.forEach(function(element, index) {
+if (element.checked == true) {
+save_game_radio_id = index;
+}
+});
+if (save_game_radio_id == -1) return "";
+return save_game_radio[save_game_radio_id].getAttribute("value");
+}
+// 点击保存棋局按钮触发的函数
+function save_chessboard_button() {
+let save_game_name = save_chessboard();
+if (save_game_name != false) {
+insert_save_game_list(save_game_name);
+}
+}
+// 点击载入棋局按钮触发的函数
+function load_chessboard_button() {
+let save_game_name = get_save_game_list_checked();
+if (save_game_name == "") return;
+alert("载入棋局");
+load_chessboard(save_game_name);
+}
+// 点击删除棋局按钮触发的函数
+function delete_chessboard_button() {
+let save_game_name = get_save_game_list_checked();
+if (save_game_name == "") return;
+if (!confirm("确认删除" + save_game_name)) return;
+delete_chessboard(save_game_name);
+show_save_game_list();
+}
+// 把已保存棋局的列表显示到页面上
+function show_save_game_list() {
+let save_game_list = document.getElementById("save_game_list");
+save_game_list.innerHTML = "";
+let save_game_arr = get_save_game_name();
+save_game_arr.forEach(function(element, index) {
+insert_save_game_list(element);
+});
+}
+// 在已保存棋局的列表上插入一个新节点
+function insert_save_game_list(save_game_name) {
+let save_game_list = document.getElementById("save_game_list");
+let label = document.createElement("label");
+let input = document.createElement("input");
+input.setAttribute("type", "radio");
+input.setAttribute("value", save_game_name);
+input.setAttribute("name", "save_game_name");
+let node = document.createTextNode(save_game_name);
+label.appendChild(input);
+label.appendChild(node);
+save_game_list.appendChild(label);
+}
+// AI
+var FiveChess = (function() {
+var CHESSES = {
+'none': 0,
+'black': 1,
+'white': 2
+};
+var DIRS = [
+[
+[1, 0],
+[-1, 0]
+],
+[
+[0, 1],
+[0, -1]
+],
+[
+[1, 1],
+[-1, -1]
+],
+[
+[1, -1],
+[-1, 1]
+]
+];
+function FiveChess() {
+var board = [];
+for (var i = 16; i--;) {
+board[i] = [];
+for (var j = 16; j--;) {
+board[i][j] = CHESSES['none'];
+}
+}
+this.board = board;
+this.state = 'black';
+}
+FiveChess.prototype.hasChess = function(x, y) {
+return this.board[x][y] !== CHESSES['none'];
+}
+FiveChess.prototype.drop = function(x, y) {
+var board = this.board;
+var state = this.state;
+if (state === 'end') {
+throw new Error('Game ended');
+}
+if (this.hasChess(x, y)) {
+throw new Error('Chess can not be drop here');
+}
+board[x][y] = CHESSES[state];
+if (this.judge(x, y, state)) {
+this.state = 'end';
+return state;
+} else {
+this.state = state === 'black' ? 'white' : 'black';
+return false;
+}
+}
+FiveChess.prototype.judge = function(x, y, color) {
+var board = this.board;
+var count;
+var i, j;
+var curX, curY;
+var curDir;
+for (i = DIRS.length; i--;) {
+count = 1;
+curDir = DIRS[i];
+for (j = 2; j--;) {
+curX = x + curDir[j][0];
+curY = y + curDir[j][1];
+while (board[curX] && board[curY] && board[curX][curY] === CHESSES[color]) {
+curX += curDir[j][0];
+curY += curDir[j][1];
+count++;
+}
+}
+if (count >= 5) {
+return true;
+}
+}
+return false;
+};
+FiveChess.prototype.AI = function() {
+var board = this.board;
+var state = this.state;
+var maxX = 0;
+var maxY = 0;
+var maxWeight = 0;
+var i, j, cur;
+let chessboard_arr = init_chessboard_arr(game_data.game_history); // 初始化代表棋盘的数组
+board = chessboard_arr;
+this.board = board;
+for (i = 15; i--;) {
+for (j = 15; j--;) {
+if (board[i][j] !== CHESSES['none']) {
+continue;
+}
+cur = this.computeWeight(i, j, state);
+if (cur > maxWeight) {
+maxWeight = cur;
+maxX = i;
+maxY = j;
+}
+}
+}
+return {
+x: maxX,
+y: maxY
+};
+}
+FiveChess.prototype.computeWeight = function(x, y, color) {
+var weight = 14 - (Math.abs(x - 7) + Math.abs(y - 7));
+var pointInfo = {};
+var enermyColor = color === 'black' ? 'white' : 'black';
+for (var i = DIRS.length; i--;) {
+pointInfo = this.putDirect(x, y, color, DIRS[i]);
+weight += this.weightStatus(pointInfo.count, pointInfo.sides, true);
+pointInfo = this.putDirect(x, y, enermyColor, DIRS[i]);
+weight += this.weightStatus(pointInfo.count, pointInfo.sides, false);
+}
+return weight;
+};
+FiveChess.prototype.putDirect = function(x, y, color, dir) {
+var curX, curY;
+var count = 1;
+var sides = [false, false];
+var board = this.board;
+var j;
+for (j = 2; j--;) {
+curX = x + dir[j][0];
+curY = y + dir[j][1];
+while (board[curX] && board[curY]) {
+if (board[curX][curY] === CHESSES[color]) {
+curX += dir[j][0];
+curY += dir[j][1];
+count++;
+} else if (board[curX][curY] === CHESSES['none']) {
+sides[j] = true;
+break;
+} else {
+break;
+}
+}
+}
+return {
+"count": count,
+"sides": sides
+};
+}
+FiveChess.prototype.weightStatus = function(count, sides, isAI) {
+var weight = 0;
+var both = sides[0] && sides[1];
+var single = sides[0] || sides[1];
+switch (count) {
+case 1:
+if (both) {
+weight = isAI ? 15 : 10;
+}
+break;
+case 2:
+if (both) {
+weight = isAI ? 100 : 50;
+} else if (single) {
+weight = isAI ? 10 : 5;
+}
+break;
+case 3:
+if (both) {
+weight = isAI ? 500 : 200;
+} else if (single) {
+weight = isAI ? 30 : 20;
+}
+break;
+case 4:
+if (both) {
+weight = isAI ? 5000 : 2000;
+} else if (single) {
+weight = isAI ? 400 : 100;
+}
+break;
+case 5:
+weight = isAI ? 100000 : 10000;
+break;
+default:
+weight = isAI ? 500000 : 250000;
+break;
+}
+return weight;
+}
+return FiveChess;
+}());
+</script>
+</body>
+</html>
